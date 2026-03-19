@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EY Invoice Intelligence Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025);
+        }
+
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #ffe600;
+            /* EY Yellow accent */
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 min-h-screen font-sans text-slate-800">
+    <div class="max-w-[1400px] mx-auto p-6 space-y-6">
+        <!-- Dashboard Header -->
+        <header class="flex justify-between items-end pb-4 border-b border-slate-200">
+            <div>
+                <p class="text-sm font-semibold text-slate-400 mb-1 uppercase tracking-widest">Consulting Data Analytics
+                </p>
+                <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">지능형 구조화 플랫폼 <span
+                        class="text-lg font-medium text-slate-500 ml-2">v1.0</span></h1>
+                <p class="text-slate-500 mt-2 text-sm">Gemini 3.1 VLM 엔진 기반 영수증/인보이스 데이터 고도화 추출 (Batch Process)</p>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div class="flex flex-col text-right">
+                    <span class="text-xs text-slate-400 font-medium">SCAN DIRECTORY</span>
+                    <span class="text-sm font-semibold text-slate-700">/input/</span>
+                </div>
+                <div
+                    class="text-sm px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium border border-slate-200 shadow-sm">
+                    대기 폴더 <span id="fileCount" class="font-bold text-indigo-600 ml-1">0</span>건
+                </div>
+                <button onclick="loadFiles()"
+                    class="px-4 py-2 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 hover:shadow-sm transition font-medium text-sm flex items-center">
+                    <svg class="w-4 h-4 mr-2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                        </path>
+                    </svg>
+                    Refresh
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Layout -->
+        <div class="grid grid-cols-1 xl:grid-cols-4 gap-6">
+
+            <!-- Sidebar: Batch File Queue -->
+            <div class="glass-panel rounded-xl p-5 h-[820px] flex flex-col xl:col-span-1">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-bold text-slate-800 flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                            </path>
+                        </svg>
+                        Batch 대기열
+                    </h2>
+                </div>
+                <div class="overflow-y-auto flex-1 pr-2 space-y-2 custom-scrollbar" id="fileList">
+                    <!-- Dynamic File Items -->
+                    <div class="text-center text-slate-400 mt-12 text-sm">/input 폴더에서 이미지를 스캔 중입니다...</div>
+                </div>
+            </div>
+
+            <!-- Main Panel: Document Analyzer Workspace -->
+            <div class="xl:col-span-3 glass-panel rounded-xl p-6 h-[820px] flex flex-col relative hidden"
+                id="detailView">
+                <!-- Loading Overlay -->
+                <div id="loaderArea"
+                    class="absolute inset-0 bg-white/90 backdrop-blur-md z-20 hidden flex-col items-center justify-center rounded-xl">
+                    <div class="loader mb-5"></div>
+                    <h3 class="text-lg font-bold text-slate-800">문서 분석 진행 중</h3>
+                    <p class="text-slate-500 text-sm mt-2">Gemini 3.1 VLM 모델이 비정형 데이터를 구조화하고 있습니다.</p>
+                </div>
+
+                <!-- Workspace Header -->
+                <div class="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
+                    <div class="flex flex-col">
+                        <span class="text-xs font-semibold text-slate-400 mb-1">TARGET DOCUMENT</span>
+                        <h2 class="text-xl font-bold text-slate-800" id="currentFileName">document_name.pdf</h2>
+                    </div>
+                    <button id="analyzeBtn"
+                        class="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-medium shadow-md transition flex items-center shadow-slate-900/20">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                        AI 분석 실행
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 flex-1 overflow-hidden">
+
+                    <!-- Left: Original Image -->
+                    <div
+                        class="flex flex-col h-full bg-slate-100/50 rounded-xl border border-slate-200 overflow-hidden">
+                        <div
+                            class="px-4 py-2 bg-slate-200/50 border-b border-slate-200 text-xs font-semibold text-slate-600">
+                            RAW 원본 이미지 확인
+                        </div>
+                        <div class="flex-1 overflow-auto p-4 flex items-center justify-center">
+                            <img id="imagePreview" src="" alt="Preview"
+                                class="max-w-full shadow-sm rounded border border-slate-200 bg-white">
+                        </div>
+                    </div>
+
+                    <!-- Right: Extracted Data Panel -->
+                    <div class="flex flex-col h-full overflow-y-auto pr-2 pb-4">
+
+                        <!-- Empty State Before Analysis -->
+                        <div id="emptyState"
+                            class="flex-1 flex items-center justify-center flex-col text-slate-400 py-20">
+                            <svg class="w-16 h-16 mb-4 opacity-40" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
+                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                                </path>
+                            </svg>
+                            <p class="font-medium text-slate-500">대기 중 : 분석 실행이 필요합니다.</p>
+                            <p class="text-sm mt-1">상단의 'AI 분석 실행'을 클릭하여 프로세스를 시작하십시오.</p>
+                        </div>
+
+                        <!-- Analysis Results -->
+                        <div id="resultPanel" class="hidden flex-col space-y-6">
+
+                            <!-- Financial Summary Highlights -->
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-800 border-l-4 border-indigo-500 pl-2 mb-3">핵심
+                                    거래 정보 (Key Analytics)</h3>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div class="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
+                                        <p class="text-xs text-slate-500 font-medium mb-1">상호명</p>
+                                        <p class="text-base font-bold text-slate-800 truncate" id="resVendor">-</p>
+                                    </div>
+                                    <div class="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
+                                        <p class="text-xs text-slate-500 font-medium mb-1">거래 일자</p>
+                                        <p class="text-base font-bold text-slate-800" id="resDate">-</p>
+                                    </div>
+                                    <div class="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
+                                        <p class="text-xs text-slate-500 font-medium mb-1">최종 결제 금액 (Total)</p>
+                                        <p class="text-lg font-extrabold text-blue-600" id="resTotal">-</p>
+                                    </div>
+                                    <div class="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
+                                        <p class="text-xs text-slate-500 font-medium mb-1">세액 (Tax)</p>
+                                        <p class="text-base font-bold text-slate-800" id="resTax">-</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Detailed Table -->
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-800 border-l-4 border-emerald-500 pl-2 mb-3">상세
+                                    품목 (Line Items)</h3>
+                                <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+                                    <table class="w-full text-sm text-left whitespace-nowrap">
+                                        <thead
+                                            class="bg-slate-50 text-slate-600 font-medium border-b border-slate-200 text-xs">
+                                            <tr>
+                                                <th class="px-4 py-3">품목 요약 (Item)</th>
+                                                <th class="px-4 py-3 text-right">수량 (Qty)</th>
+                                                <th class="px-4 py-3 text-right">단가 (Price)</th>
+                                                <th class="px-4 py-3 text-right">금액 (Amount)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="lineItemsTable" class="divide-y divide-slate-100">
+                                            <!-- Dynamically injected rows -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Full Raw Text -->
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-800 border-l-4 border-slate-400 pl-2 mb-3">원본
+                                    텍스트 추출 (Raw Full Text)</h3>
+                                <div class="bg-slate-900 border border-slate-700 text-emerald-400 font-mono text-xs p-4 rounded-lg overflow-y-auto h-48 shadow-inner whitespace-pre-wrap leading-relaxed"
+                                    id="fullText"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Default Landing Screen -->
+            <div id="initialSelectPrompt"
+                class="xl:col-span-3 glass-panel rounded-xl p-6 h-[820px] flex items-center justify-center flex-col">
+                <div class="w-24 h-24 mb-6 rounded-full bg-slate-100 flex items-center justify-center">
+                    <svg class="w-10 h-10 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                            d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122">
+                        </path>
+                    </svg>
+                </div>
+                <h3 class="text-xl font-bold text-slate-700 mb-2">작업 대기 중</h3>
+                <p class="text-slate-500 mb-1">좌측 패널에서 이미지를 선택하여 분석 대시보드를 활성화하세요.</p>
+                <p class="text-xs font-semibold text-slate-400 tracking-wide mt-4">POWERED BY GOOGLE GEMINI VLM</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let fileQueue = [];
+        let activeFile = null;
+
+        // Fetch target files from API
+        async function loadFiles() {
+            try {
+                const response = await fetch('/api/files');
+                const data = await response.json();
+                fileQueue = data.files;
+                document.getElementById('fileCount').innerText = fileQueue.length;
+                renderFileList();
+            } catch (error) {
+                console.error("File Loading Error:", error);
+                alert("서버 연결에 실패했습니다. 백엔드가 실행 중인지 확인하세요.");
+            }
+        }
+
+        // Render queued files into DOM
+        function renderFileList() {
+            const listContainer = document.getElementById('fileList');
+            listContainer.innerHTML = '';
+
+            if (fileQueue.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="text-center text-slate-500 mt-10 p-4 bg-slate-100 rounded-lg text-sm border border-slate-200 border-dashed">
+                        /input 디렉토리에 대상 파일이 없습니다.<br>
+                        (jpg, png, webp) 포맷을 지원합니다.
+                    </div>`;
+                return;
+            }
+
+            fileQueue.forEach(filename => {
+                const row = document.createElement('div');
+                row.className = 'p-3 rounded-lg border border-slate-200 bg-white hover:border-indigo-400 hover:shadow-sm cursor-pointer transition flex items-center group text-sm';
+                row.onclick = () => activateWorkspace(filename);
+
+                row.innerHTML = `
+                    <div class="bg-slate-100 p-2 rounded mr-3 group-hover:bg-indigo-50 transition">
+                        <svg class="w-4 h-4 text-slate-400 group-hover:text-indigo-600 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    </div>
+                    <span class="font-medium text-slate-700 truncate flex-1" title="${filename}">${filename}</span>
+                `;
+                listContainer.appendChild(row);
+            });
+        }
+
+        // Setup the workspace for a selected file
+        async function activateWorkspace(filename) {
+            activeFile = filename;
+
+            // Switch Panes
+            document.getElementById('initialSelectPrompt').classList.add('hidden');
+            document.getElementById('detailView').classList.remove('hidden');
+
+            // Reset Results UI
+            document.getElementById('resultPanel').classList.add('hidden');
+            document.getElementById('emptyState').classList.remove('hidden');
+            document.getElementById('emptyState').classList.add('flex');
+            document.getElementById('currentFileName').innerText = filename;
+
+            // Fetch and render image securely
+            try {
+                const response = await fetch(`/api/image/${encodeURIComponent(filename)}`);
+                const data = await response.json();
+                document.getElementById('imagePreview').src = `data:${data.mime_type};base64,${data.data}`;
+            } catch (error) {
+                console.error("Image Loading Error:", error);
+            }
+
+            // Assign handler
+            document.getElementById('analyzeBtn').onclick = () => executeAnalysis(filename);
+        }
+
+        // Call the generation API
+        async function executeAnalysis(filename) {
+            const loaderDiv = document.getElementById('loaderArea');
+            loaderDiv.classList.remove('hidden');
+            loaderDiv.classList.add('flex');
+
+            try {
+                const response = await fetch(`/api/analyze/${encodeURIComponent(filename)}`, { method: 'POST' });
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    renderAnalysisResult(data.result);
+                } else {
+                    alert(`분석 실패: ${data.detail}`);
+                }
+            } catch (error) {
+                console.error("API Execution Error:", error);
+                alert("서버 연결 또는 분석 중 예측을 벗어난 예외가 발생했습니다.");
+            } finally {
+                loaderDiv.classList.add('hidden');
+                loaderDiv.classList.remove('flex');
+            }
+        }
+
+        // Helper string formatter
+        const formatNumber = (num) => {
+            if (num === undefined || num === null) return '-';
+            // handle both string and numbers
+            return Number(num).toLocaleString('ko-KR');
+        };
+
+        // Render analytics data directly to UI metrics components
+        function renderAnalysisResult(resultPayload) {
+            // UI Component state toggle
+            document.getElementById('emptyState').classList.add('hidden');
+            document.getElementById('emptyState').classList.remove('flex');
+            document.getElementById('resultPanel').classList.remove('hidden');
+            document.getElementById('resultPanel').classList.add('flex');
+
+            const structured = resultPayload.structured_data || {};
+            const rawText = resultPayload.full_text || '추출 텍스트 없음';
+
+            const currencyMark = structured.currency || 'KRW';
+
+            // Top Highlights
+            document.getElementById('resVendor').innerText = structured.vendor_info?.name || 'Null';
+            document.getElementById('resDate').innerText = structured.transaction_date || 'Null';
+            document.getElementById('resTotal').innerText = `${formatNumber(structured.financial_summary?.total_amount)} ${currencyMark}`;
+            document.getElementById('resTax').innerText = `${formatNumber(structured.financial_summary?.tax)} ${currencyMark}`;
+
+            // Line Items Table Mapping
+            const tableBody = document.getElementById('lineItemsTable');
+            tableBody.innerHTML = '';
+
+            if (structured.line_items && structured.line_items.length > 0) {
+                structured.line_items.forEach(idx => {
+                    const rowHTML = `
+                        <tr class="hover:bg-slate-50 transition border-b border-slate-50 last:border-0">
+                            <td class="px-4 py-3 font-medium text-slate-700 truncate max-w-[200px]" title="${idx.item || ''}">${idx.item || '-'}</td>
+                            <td class="px-4 py-3 text-right text-slate-600">${idx.quantity || '-'}</td>
+                            <td class="px-4 py-3 text-right text-slate-600">${formatNumber(idx.unit_price)}</td>
+                            <td class="px-4 py-3 text-right font-medium text-slate-800">${formatNumber(idx.amount)}</td>
+                        </tr>
+                    `;
+                    tableBody.innerHTML += rowHTML;
+                });
+            } else {
+                tableBody.innerHTML = `<tr><td colspan="4" class="px-4 py-6 text-center text-slate-400 bg-slate-50 font-medium">인식된 상세 품목 내역이 없습니다. (No Line Items detected)</td></tr>`;
+            }
+
+            // Bind Full Code block
+            document.getElementById('fullText').innerText = rawText;
+        }
+
+        // Boot
+        document.addEventListener('DOMContentLoaded', () => {
+            loadFiles();
+        });
+    </script>
+</body>
+
+</html>
