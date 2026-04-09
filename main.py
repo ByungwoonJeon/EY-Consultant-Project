@@ -28,7 +28,7 @@ if api_key and api_key != "your_gemini_api_key_here":
 
 # The user requested Gemini 3.1 Pro. The closest applicable flagship model
 # for vision and structured JSON output is 'gemini-1.5-pro-latest' or 'gemini-1.5-flash'. 
-MODEL_NAME = "gemini-3.1-pro-preview"
+MODEL_NAME = "models/gemini-2.5-flash"
 
 # System prompt configured as per the requirements to extract full text and structured JSON
 SYSTEM_PROMPT = """[과업: 영수증/인보이스 데이터 추출 및 구조화]
@@ -148,4 +148,6 @@ async def analyze_receipt_image(filename: str):
     except json.JSONDecodeError:
         raise HTTPException(status_code=500, detail="Gemini Model returned malformed JSON response.")
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Image analysis failed: {str(e)}")
